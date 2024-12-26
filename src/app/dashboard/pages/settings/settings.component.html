@@ -1,0 +1,204 @@
+<div class="dashboard-container">
+  <app-sidebar></app-sidebar>
+  
+  <div class="dashboard-content">
+    <div class="settings-container">
+      <h1>Configurações</h1>
+      
+      <div class="settings-tabs">
+        <button 
+          class="tab-button" 
+          [class.active]="activeTab === 'companies'"
+          (click)="setActiveTab('companies')">
+          <mat-icon>business</mat-icon>
+          Empresas
+        </button>
+        <button 
+          class="tab-button" 
+          [class.active]="activeTab === 'users'"
+          (click)="setActiveTab('users')">
+          <mat-icon>people</mat-icon>
+          Usuários
+        </button>
+        <button 
+          class="tab-button" 
+          [class.active]="activeTab === 'settings'"
+          (click)="setActiveTab('settings')">
+          <mat-icon>settings</mat-icon>
+          Configurações
+        </button>
+      </div>
+
+      <div class="settings-content">
+        <!-- Conteúdo de Empresas -->
+        <div *ngIf="activeTab === 'companies'" class="companies-settings">
+          <h2>Cadastro de Empresa</h2>
+          
+          <div class="setting-item">
+            <label>CNPJ</label>
+            <input 
+              type="text" 
+              placeholder="Digite o CNPJ" 
+              [(ngModel)]="company.cnpj"
+              ngxMask="00.000.000/0000-00"
+            >
+          </div>
+          
+          <div class="setting-item">
+            <label>E-mail</label>
+            <input 
+              type="email" 
+              placeholder="Digite o e-mail" 
+              [(ngModel)]="company.email"
+            >
+          </div>
+          
+          <div class="setting-item">
+            <label>ID G-Chat</label>
+            <input 
+              type="text" 
+              placeholder="ID G-Chat" 
+              [(ngModel)]="company.idGChat"
+            >
+          </div>
+          
+          <div class="setting-item">
+            <label>Nome Fantasia</label>
+            <input 
+              type="text" 
+              placeholder="Nome Fantasia" 
+              [(ngModel)]="company.nomeFantasia"
+            >
+          </div>
+          
+          <div class="setting-item">
+            <label>Nome G-Chat</label>
+            <input 
+              type="text" 
+              placeholder="Nome G-Chat" 
+              [(ngModel)]="company.nomeGChat"
+            >
+          </div>
+          
+          <div class="setting-item">
+            <label>Telefone</label>
+            <input 
+              type="text" 
+              placeholder="Telefone" 
+              [(ngModel)]="company.telefone"
+              ngxMask="(00) 00000-0000"
+            >
+          </div>
+          
+          <div class="setting-item">
+            <label>Token</label>
+            <div class="token-input-container">
+              <input 
+                type="text" 
+                placeholder="Token" 
+                [(ngModel)]="company.token"
+                class="token-input"
+              >
+              <button 
+                class="btn-search" 
+                (click)="buscarToken()"
+              >
+                Buscar
+              </button>
+            </div>
+          </div>
+
+          <div class="settings-actions">
+            <button class="btn-save" (click)="salvarEmpresa()">Salvar Empresa</button>
+            <button class="btn-cancel">Cancelar</button>
+          </div>
+
+          <!-- Lista de Empresas Cadastradas -->
+          <div class="companies-list">
+            <h2>Empresas Cadastradas</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>CNPJ</th>
+                  <th>Nome Fantasia</th>
+                  <th>E-mail</th>
+                  <th>Telefone</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let comp of companiesList">
+                  <td>{{ comp.cnpj }}</td>
+                  <td>{{ comp.nomeFantasia }}</td>
+                  <td>{{ comp.email }}</td>
+                  <td>{{ comp.telefone }}</td>
+                  <td>
+                    <button class="btn-edit" (click)="editarEmpresa(comp)">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button class="btn-delete" (click)="excluirEmpresa(comp)">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p *ngIf="companiesList.length === 0" class="no-companies">
+              Nenhuma empresa cadastrada.
+            </p>
+          </div>
+        </div>
+
+        <!-- Conteúdo de Usuários -->
+        <div *ngIf="activeTab === 'users'" class="users-settings">
+          <h2>Configurações de Usuários</h2>
+          <div class="setting-item">
+            <label>Permissões</label>
+            <select>
+              <option>Administrador</option>
+              <option>Usuário Padrão</option>
+              <option>Visualizador</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label>Gerenciar Usuários</label>
+            <button>Adicionar Usuário</button>
+          </div>
+        </div>
+
+        <!-- Conteúdo de Configurações -->
+        <div *ngIf="activeTab === 'settings'" class="settings-section">
+          <h2>Configurações Gerais</h2>
+          <div class="setting-item">
+            <label>Tema</label>
+            <select>
+              <option>Claro</option>
+              <option>Escuro</option>
+              <option>Sistema</option>
+            </select>
+          </div>
+          
+          <div class="setting-item">
+            <label>Idioma</label>
+            <select>
+              <option>Português</option>
+              <option>Inglês</option>
+              <option>Espanhol</option>
+            </select>
+          </div>
+
+          <h2>Configurações de Conta</h2>
+          <div class="setting-item">
+            <label>Nome de Usuário</label>
+            <input type="text" placeholder="Seu nome de usuário">
+          </div>
+          
+          <div class="setting-item">
+            <label>Email</label>
+            <input type="email" placeholder="Seu email">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

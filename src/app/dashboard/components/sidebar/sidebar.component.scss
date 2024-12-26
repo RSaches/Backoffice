@@ -1,0 +1,39 @@
+// Sidebar styles
+.sidebar {
+  width: 250px;
+  background-color: #f4f4f4;
+  height: 100vh;
+}
+
+nav {
+  ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+
+    li {
+      a {
+        display: flex;
+        align-items: center;
+        padding: 12px 20px;
+        text-decoration: none;
+        color: #333;
+        transition: background-color 0.3s ease;
+
+        i {
+          margin-right: 10px;
+          font-size: 18px;
+        }
+
+        &:hover {
+          background-color: #e0e0e0;
+        }
+
+        &.active {
+          background-color: #007bff;
+          color: white;
+        }
+      }
+    }
+  }
+}
