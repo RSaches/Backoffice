@@ -9,6 +9,9 @@ import { FirebaseService, Company } from '../../../core/services/firebase.servic
 import { Subscription } from 'rxjs';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { trigger, state, style, transition, animate } from '@angular/animations';
+import { ChannelService } from '../../../core/services/channel.service';
+import { ChannelResponse } from '../../../core/interfaces/channel.interface';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 
 @Component({
   selector: 'app-settings',
@@ -21,7 +24,8 @@ import { trigger, state, style, transition, animate } from '@angular/animations'
     NgxMaskDirective,
     NgxMaskPipe,
     SidebarComponent,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatPaginatorModule
   ],
   providers: [provideNgxMask()],
   templateUrl: './settings.component.html',
@@ -56,12 +60,31 @@ export class SettingsComponent implements OnInit, OnDestroy {
   isLoading = false;
   errorMessage = '';
 
+  isEditMode = false;
+  editingCompanyId: string | null = null;
+
+  // Pagination properties
+  pageSize = 10; // 10 empresas por página
+  pageIndex = 0;
+  pageSizeOptions = [5, 10, 25, 50];
+  
+  // Filtered and paginated companies list
+  get paginatedCompaniesList(): Company[] {
+    const startIndex = this.pageIndex * this.pageSize;
+    const endIndex = startIndex + this.pageSize;
+    return this.companiesList.slice(startIndex, endIndex);
+  }
+
   constructor(
     private firebaseService: FirebaseService,
-    private snackBar: MatSnackBar
-  ) {}
+    private snackBar: MatSnackBar,
+    private channelService: ChannelService
+  ) {
+    console.log('SettingsComponent: Constructor called');
+  }
 
   ngOnInit() {
+    console.log('SettingsComponent: ngOnInit called');
     this.loadCompanies();
   }
 
@@ -107,9 +130,46 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   buscarToken() {
-    // Lógica para buscar o token
-    console.log('Buscando token...');
-    // Aqui você pode implementar a chamada para um serviço que busca o token
+    if (!this.company.token) {
+      this.snackBar.open('Por favor, insira um token válido.', 'Fechar', { duration: 3000 });
+      return;
+    }
+
+    this.isLoading = true;
+    this.errorMessage = '';
+
+    this.channelService.getChannelInfo(this.company.token)
+      .subscribe({
+        next: (response: ChannelResponse) => {
+          // Preencher campos automaticamente
+          if (response.identifier) {
+            this.company.telefone = response.identifier;
+          }
+          
+          // ID G-Chat fixo conforme especificado
+          this.company.idGChat = '649dc6f895478db1c37790f2';
+          
+          if (response.description) {
+            this.company.nomeGChat = response.description;
+          }
+
+          this.isLoading = false;
+          this.snackBar.open('Informações do canal carregadas com sucesso!', 'Fechar', { duration: 3000 });
+        },
+        error: (error) => {
+          this.isLoading = false;
+          console.error('Erro ao buscar informações do canal:', error);
+          
+          let errorMessage = 'Erro ao buscar informações do canal.';
+          if (error.error && error.error.msg) {
+            errorMessage = error.error.msg;
+          }
+
+          this.snackBar.open(errorMessage, 'Fechar', { 
+            duration: 5000 
+          });
+        }
+      });
   }
 
   salvarEmpresa() {
@@ -118,35 +178,77 @@ export class SettingsComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Verificar se já existe um CNPJ igual
+    const cnpjExistente = this.companiesList.find(
+      empresa => 
+        empresa.cnpj.replace(/[^\d]/g, '') === this.company.cnpj.replace(/[^\d]/g, '') &&
+        empresa.id !== this.editingCompanyId
+    );
+
+    if (cnpjExistente) {
+      this.snackBar.open('Já existe uma empresa cadastrada com este CNPJ.', 'Fechar', { 
+        duration: 5000 
+      });
+      return;
+    }
+
     this.isLoading = true;
     this.errorMessage = '';
 
-    // Adicionar a empresa ao Firestore
-    this.firebaseService.addCompany({
-      cnpj: this.company.cnpj,
-      email: this.company.email,
-      idGChat: this.company.idGChat,
-      nomeFantasia: this.company.nomeFantasia,
-      nomeGChat: this.company.nomeGChat,
-      telefone: this.company.telefone,
-      token: this.company.token
-    })
-    .then(() => {
-      this.isLoading = false;
-      this.snackBar.open('Empresa salva com sucesso!', 'Fechar', { duration: 3000 });
-      
-      // Recarregar a lista de empresas após salvar
-      this.loadCompanies();
-      
-      // Limpar o formulário
-      this.limparFormulario();
-    })
-    .catch(error => {
-      this.isLoading = false;
-      this.errorMessage = 'Erro ao salvar empresa. Verifique sua autenticação.';
-      console.error('Erro ao salvar empresa:', error);
-      this.snackBar.open(this.errorMessage, 'Fechar', { duration: 5000 });
-    });
+    // Determinar se é uma adição ou atualização
+    const saveOperation = this.isEditMode && this.editingCompanyId 
+      ? this.firebaseService.updateCompany({
+          id: this.editingCompanyId,
+          ...this.company
+        })
+      : this.firebaseService.addCompany(this.company);
+
+    saveOperation
+      .then(() => {
+        this.isLoading = false;
+        const successMessage = this.isEditMode 
+          ? 'Empresa atualizada com sucesso!' 
+          : 'Empresa salva com sucesso!';
+        
+        this.snackBar.open(successMessage, 'Fechar', { duration: 3000 });
+        
+        // Recarregar a lista de empresas após salvar
+        this.loadCompanies();
+        
+        // Limpar o formulário e sair do modo de edição
+        this.limparFormulario();
+        this.cancelarEdicao();
+      })
+      .catch(error => {
+        this.isLoading = false;
+        this.errorMessage = 'Erro ao salvar empresa. Verifique sua autenticação.';
+        console.error('Erro ao salvar empresa:', error);
+        this.snackBar.open(this.errorMessage, 'Fechar', { duration: 5000 });
+      });
+  }
+
+  editarEmpresa(empresa: Company) {
+    // Entrar no modo de edição
+    this.isEditMode = true;
+    this.editingCompanyId = empresa.id || null;
+
+    // Preencher o formulário com os dados da empresa selecionada
+    this.company = {
+      cnpj: empresa.cnpj,
+      email: empresa.email,
+      idGChat: empresa.idGChat,
+      nomeFantasia: empresa.nomeFantasia,
+      nomeGChat: empresa.nomeGChat,
+      telefone: empresa.telefone,
+      token: empresa.token
+    };
+  }
+
+  cancelarEdicao() {
+    // Sair do modo de edição
+    this.isEditMode = false;
+    this.editingCompanyId = null;
+    this.limparFormulario();
   }
 
   validarCamposEmpresa(): boolean {
@@ -172,11 +274,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
       telefone: 'Telefone'
     };
     return traducoes[campo] || String(campo);
-  }
-
-  editarEmpresa(empresa: Company) {
-    // Preencher o formulário com os dados da empresa selecionada
-    this.company = {...empresa};
   }
 
   excluirEmpresa(empresa: Company) {
@@ -214,5 +311,50 @@ export class SettingsComponent implements OnInit, OnDestroy {
       telefone: '',
       token: ''
     };
+  }
+
+  onPageChange(event: PageEvent) {
+    this.pageIndex = event.pageIndex;
+    this.pageSize = event.pageSize;
+  }
+
+  // Método para formatar CNPJ
+  formatarCNPJ() {
+    if (this.company.cnpj) {
+      // Remove caracteres não numéricos
+      const cnpjNumerico = this.company.cnpj.replace(/[^\d]/g, '');
+      
+      // Verifica se o CNPJ tem 14 dígitos
+      if (cnpjNumerico.length === 14) {
+        // Formata o CNPJ
+        this.company.cnpj = cnpjNumerico.replace(
+          /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
+          '$1.$2.$3/$4-$5'
+        );
+      }
+    }
+  }
+
+  // Método para formatar telefone
+  formatarTelefone() {
+    if (this.company.telefone) {
+      // Remove caracteres não numéricos
+      const telefoneNumerico = this.company.telefone.replace(/[^\d]/g, '');
+      
+      // Verifica se o telefone tem 10 ou 11 dígitos
+      if (telefoneNumerico.length === 10) {
+        // Formata telefone fixo
+        this.company.telefone = telefoneNumerico.replace(
+          /^(\d{2})(\d{4})(\d{4})$/,
+          '($1) $2-$3'
+        );
+      } else if (telefoneNumerico.length === 11) {
+        // Formata celular
+        this.company.telefone = telefoneNumerico.replace(
+          /^(\d{2})(\d{5})(\d{4})$/,
+          '($1) $2-$3'
+        );
+      }
+    }
   }
 }
