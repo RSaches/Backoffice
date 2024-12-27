@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import { Auth, signInWithEmailAndPassword, UserCredential } from '@angular/fire/auth';
-import { Firestore, doc, getDoc } from '@angular/fire/firestore';
+import { Auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, UserCredential } from '@angular/fire/auth';
+import { Firestore, doc, getDoc, setDoc } from '@angular/fire/firestore';
 import { Router } from '@angular/router';
 import { Observable, from, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
@@ -66,6 +66,45 @@ export class AuthService {
         }
 
         console.error('Erro de login:', error);
+        return throwError(() => new Error(errorMessage));
+      })
+    );
+  }
+
+  register(name: string, email: string, password: string): Observable<boolean> {
+    return from(createUserWithEmailAndPassword(this.auth, email, password)).pipe(
+      switchMap((userCredential: UserCredential) => {
+        const user = userCredential.user;
+        const userDocRef = doc(this.firestore, `users/${user.uid}`);
+        
+        return from(setDoc(userDocRef, {
+          name,
+          email,
+          role: 'user', // Papel padrão
+          createdAt: new Date().toISOString()
+        })).pipe(
+          map(() => {
+            this.currentUserProfile = { name, email, role: 'user' };
+            return true;
+          })
+        );
+      }),
+      catchError((error) => {
+        console.error('Erro no registro', error);
+        let errorMessage = 'Erro ao cadastrar usuário';
+        
+        switch(error.code) {
+          case 'auth/email-already-in-use':
+            errorMessage = 'E-mail já cadastrado';
+            break;
+          case 'auth/invalid-email':
+            errorMessage = 'E-mail inválido';
+            break;
+          case 'auth/weak-password':
+            errorMessage = 'Senha muito fraca';
+            break;
+        }
+        
         return throwError(() => new Error(errorMessage));
       })
     );

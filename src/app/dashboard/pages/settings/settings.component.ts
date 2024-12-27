@@ -13,6 +13,15 @@ import { ChannelService } from '../../../core/services/channel.service';
 import { ChannelResponse } from '../../../core/interfaces/channel.interface';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 
+// Sobrescrever a definição de User para incluir senha
+interface User {
+  id?: string;
+  nome: string;
+  email: string;
+  permissao: 'admin' | 'usuario' | 'visualizador';
+  senha?: string; // Adicionar campo de senha
+}
+
 @Component({
   selector: 'app-settings',
   standalone: true,
@@ -75,6 +84,20 @@ export class SettingsComponent implements OnInit, OnDestroy {
     return this.companiesList.slice(startIndex, endIndex);
   }
 
+  // Usuários
+  user: User = this.resetUserForm();
+  usersList: User[] = [];
+  isUserEditMode = false;
+  editingUserId?: string; // Modificar para aceitar undefined
+  private userSubscription?: Subscription;
+
+  // Variáveis para controle de senha
+  showPassword = false;
+
+  // Variáveis de força de senha
+  passwordStrengthClass = '';
+  passwordStrengthText = '';
+
   constructor(
     private firebaseService: FirebaseService,
     private snackBar: MatSnackBar,
@@ -86,11 +109,15 @@ export class SettingsComponent implements OnInit, OnDestroy {
   ngOnInit() {
     console.log('SettingsComponent: ngOnInit called');
     this.loadCompanies();
+    this.loadUsers();
   }
 
   ngOnDestroy() {
     if (this.companiesSubscription) {
       this.companiesSubscription.unsubscribe();
+    }
+    if (this.userSubscription) {
+      this.userSubscription.unsubscribe();
     }
   }
 
@@ -121,6 +148,29 @@ export class SettingsComponent implements OnInit, OnDestroy {
         },
         complete: () => {
           console.log('Carregamento de empresas concluído');
+        }
+      });
+  }
+
+  loadUsers() {
+    this.isLoading = true;
+    this.errorMessage = '';
+
+    this.userSubscription = this.firebaseService.getUsers()
+      .subscribe({
+        next: (users) => {
+          this.usersList = users;
+          this.isLoading = false;
+          
+          if (users.length === 0) {
+            this.snackBar.open('Nenhum usuário encontrado.', 'Fechar', { duration: 3000 });
+          }
+        },
+        error: (error) => {
+          this.isLoading = false;
+          this.errorMessage = 'Erro ao carregar usuários. Verifique sua autenticação.';
+          console.error('Erro ao carregar usuários:', error);
+          this.snackBar.open(this.errorMessage, 'Fechar', { duration: 5000 });
         }
       });
   }
@@ -356,5 +406,258 @@ export class SettingsComponent implements OnInit, OnDestroy {
         );
       }
     }
+  }
+
+  // Métodos de usuário
+  resetUserForm(): User {
+    return {
+      nome: '',
+      email: '',
+      permissao: 'usuario',
+      senha: '' // Adicionar valor padrão para senha
+    };
+  }
+
+  salvarUsuario() {
+    // Validar campos do usuário
+    if (!this.validarCamposUsuario()) {
+      return;
+    }
+
+    this.isLoading = true;
+    this.errorMessage = '';
+
+    // Preparar dados do usuário
+    const userData: Omit<User, 'id'> = {
+      nome: this.user.nome,
+      email: this.user.email,
+      permissao: this.user.permissao,
+      senha: this.user.senha // Incluir senha
+    };
+
+    // Verificar se está em modo de edição
+    if (this.isUserEditMode && this.editingUserId) {
+      // Atualizar usuário existente
+      this.firebaseService.updateUser({
+        ...userData,
+        id: this.editingUserId
+      }).then(() => {
+        this.snackBar.open('Usuário atualizado com sucesso!', 'Fechar', { duration: 3000 });
+        this.loadUsers();
+        this.limparFormularioUsuario();
+        this.isUserEditMode = false;
+        this.editingUserId = undefined; // Limpar ID de edição
+      }).catch(error => {
+        this.errorMessage = 'Erro ao atualizar usuário. Verifique sua autenticação.';
+        this.snackBar.open(this.errorMessage, 'Fechar', { duration: 5000 });
+        console.error('Erro ao atualizar usuário:', error);
+      }).finally(() => {
+        this.isLoading = false;
+      });
+    } else {
+      // Adicionar novo usuário
+      this.firebaseService.addUser(userData)
+        .then(() => {
+          this.snackBar.open('Usuário cadastrado com sucesso!', 'Fechar', { duration: 3000 });
+          this.loadUsers();
+          this.limparFormularioUsuario();
+        })
+        .catch(error => {
+          this.errorMessage = 'Erro ao cadastrar usuário. Verifique sua autenticação.';
+          this.snackBar.open(this.errorMessage, 'Fechar', { duration: 5000 });
+          console.error('Erro ao cadastrar usuário:', error);
+        })
+        .finally(() => {
+          this.isLoading = false;
+        });
+    }
+  }
+
+  editarUsuario(usuario: User) {
+    this.isUserEditMode = true;
+    this.editingUserId = usuario.id;
+    this.user = {
+      nome: usuario.nome,
+      email: usuario.email,
+      permissao: usuario.permissao,
+      senha: usuario.senha || '' // Adicionar campo de senha
+    };
+  }
+
+  cancelarEdicaoUsuario() {
+    // Sair do modo de edição
+    this.isUserEditMode = false;
+    this.editingUserId = undefined; // Modificar para aceitar undefined
+    this.limparFormularioUsuario();
+  }
+
+  excluirUsuario(usuario: User) {
+    if (!usuario.id) {
+      this.snackBar.open('Não foi possível identificar o usuário para exclusão.', 'Fechar', { duration: 3000 });
+      return;
+    }
+
+    this.isLoading = true;
+    this.errorMessage = '';
+
+    this.firebaseService.deleteUser(usuario.id)
+      .then(() => {
+        this.isLoading = false;
+        this.snackBar.open('Usuário excluído com sucesso!', 'Fechar', { duration: 3000 });
+        
+        // Recarregar a lista de usuários após exclusão
+        this.loadUsers();
+      })
+      .catch(error => {
+        this.isLoading = false;
+        this.errorMessage = 'Erro ao excluir usuário. Verifique sua autenticação.';
+        console.error('Erro ao excluir usuário:', error);
+        this.snackBar.open(this.errorMessage, 'Fechar', { duration: 5000 });
+      });
+  }
+
+  validarCamposUsuario(): boolean {
+    const camposObrigatorios: (keyof User)[] = [
+      'nome', 'email', 'permissao', 'senha'
+    ];
+
+    for (const campo of camposObrigatorios) {
+      if (!this.user[campo]) {
+        const nomeCampo = this.traduzirCampoUsuario(campo);
+        this.snackBar.open(`${nomeCampo} é obrigatório`, 'Fechar', { duration: 3000 });
+        return false;
+      }
+    }
+    return true;
+  }
+
+  traduzirCampoUsuario(campo: keyof User): string {
+    const traducoes: { [K in keyof User]?: string } = {
+      nome: 'Nome',
+      email: 'E-mail',
+      permissao: 'Permissão',
+      senha: 'Senha'
+    };
+    return traducoes[campo] || String(campo);
+  }
+
+  limparFormularioUsuario() {
+    this.user = {
+      nome: '',
+      email: '',
+      permissao: 'usuario',
+      senha: '' // Adicionar valor padrão para senha
+    };
+  }
+
+  // Método para alternar visibilidade da senha
+  togglePasswordVisibility() {
+    this.showPassword = !this.showPassword;
+  }
+
+  // Método para avaliar força da senha
+  getPasswordStrength(senha: string): number {
+    let strength = 0;
+    
+    // Critérios de força da senha
+    if (senha.length >= 8) strength++;
+    if (/[A-Z]/.test(senha)) strength++;
+    if (/[a-z]/.test(senha)) strength++;
+    if (/[0-9]/.test(senha)) strength++;
+    if (/[!@#$%^&*(),.?":{}|<>]/.test(senha)) strength++;
+
+    return strength;
+  }
+
+  // Método para obter classe de força da senha
+  getPasswordStrengthClass(): string {
+    if (!this.user.senha) return '';
+    
+    const strength = this.getPasswordStrength(this.user.senha);
+    
+    switch(strength) {
+      case 0:
+      case 1:
+        return 'strength-weak';
+      case 2:
+      case 3:
+        return 'strength-medium';
+      case 4:
+      case 5:
+        return 'strength-strong';
+      default:
+        return '';
+    }
+  }
+
+  // Método para obter texto de força da senha
+  getPasswordStrengthText(): string {
+    if (!this.user.senha) return '';
+    
+    const strength = this.getPasswordStrength(this.user.senha);
+    
+    switch(strength) {
+      case 0:
+      case 1:
+        return 'Senha fraca';
+      case 2:
+      case 3:
+        return 'Senha média';
+      case 4:
+      case 5:
+        return 'Senha forte';
+      default:
+        return '';
+    }
+  }
+
+  // Método para validar força da senha
+  validatePasswordStrength() {
+    if (!this.user.senha) {
+      this.passwordStrengthClass = '';
+      this.passwordStrengthText = '';
+      return;
+    }
+
+    const strength = this.getPasswordStrength(this.user.senha);
+    
+    switch(strength) {
+      case 0:
+      case 1:
+        this.passwordStrengthClass = 'strength-weak';
+        this.passwordStrengthText = 'Senha muito fraca';
+        break;
+      case 2:
+      case 3:
+        this.passwordStrengthClass = 'strength-medium';
+        this.passwordStrengthText = 'Senha média';
+        break;
+      case 4:
+      case 5:
+        this.passwordStrengthClass = 'strength-strong';
+        this.passwordStrengthText = 'Senha forte';
+        break;
+      default:
+        this.passwordStrengthClass = '';
+        this.passwordStrengthText = '';
+    }
+  }
+
+  // Método para validar todo o formulário
+  isFormValid(): boolean {
+    // Validar campos obrigatórios
+    if (!this.user.nome || !this.user.email || !this.user.permissao || !this.user.senha) {
+      return false;
+    }
+
+    // Validar e-mail
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(this.user.email)) {
+      return false;
+    }
+
+    // Validar força da senha
+    const passwordStrength = this.getPasswordStrength(this.user.senha);
+    return passwordStrength >= 3; // Requer pelo menos força média
   }
 }

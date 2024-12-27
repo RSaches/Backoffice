@@ -35,6 +35,7 @@ export interface User {
   nome: string;
   email: string;
   permissao: 'admin' | 'usuario' | 'visualizador';
+  senha?: string;
 }
 
 @Injectable({
@@ -197,7 +198,8 @@ export class FirebaseService {
     return this.updateDocument<User>('users', user.id, {
       nome: user.nome,
       email: user.email,
-      permissao: user.permissao
+      permissao: user.permissao,
+      senha: user.senha
     });
   }
 
