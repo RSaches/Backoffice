@@ -71,8 +71,8 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      background-color: #314440; 
-      color: #EBEAE9; 
+      background-color: #39586D; 
+      color: #D2D7DB; 
       border: none;
       padding: 10px 15px;
       border-radius: 4px;
@@ -80,16 +80,17 @@
       transition: background-color 0.3s ease;
 
       mat-icon {
-        color: #E2E3E3; 
+        color: #D2D7DB; 
       }
 
       &:hover {
-        background-color: color.adjust(#314440, $lightness: -10%);
+        background-color: color.adjust(#39586D, $lightness: -10%);
       }
 
       &:disabled {
         opacity: 0.6;
         cursor: not-allowed;
+        background-color: color.adjust(#39586D, $lightness: 20%);
       }
     }
   }
