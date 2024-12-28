@@ -3,7 +3,7 @@ import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 
 import { FirebaseService, Company } from './firebase.service';
-import { GChatApiService, GChatContact } from './gchat-api.service';
+import { GChatApiService, GChatContact, TagApiModel } from './gchat-api.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 export interface Contact {
@@ -45,6 +45,33 @@ export class ContactsService {
     private snackBar: MatSnackBar
   ) {}
 
+  // Método para processar tags de um contato
+  private processContactTags(contact: GChatContact): string {
+    if (!contact.tags || contact.tags.length === 0) {
+      return 'Sem etiqueta';
+    }
+
+    // Extrair descrições únicas das tags
+    const tagDescriptions = contact.tags
+      .map(tag => tag.Description)
+      .filter(description => description && description.trim() !== '')
+      .join(', ');
+
+    return tagDescriptions || 'Sem etiqueta';
+  }
+
+  // Converter contatos do G-Chat para o formato interno
+  private convertGChatContacts(gChatContacts: GChatContact[]): Contact[] {
+    return gChatContacts.map((contact, index) => ({
+      id: index + 1, // Convertendo para número
+      name: contact.name || contact.nameFromWhatsApp || 'Sem nome',
+      number: contact.number || '',
+      label: this.processContactTags(contact),
+      whatsappName: contact.nameFromWhatsApp || '',
+      selected: false
+    }));
+  }
+
   // Buscar contatos do G-Chat
   searchGChat(companyToken: string): Observable<Contact[]> {
     // Ativar estado de carregamento
@@ -82,24 +109,15 @@ export class ContactsService {
     );
   }
 
-  // Converter contatos do G-Chat para o formato interno
-  private convertGChatContacts(gChatContacts: GChatContact[]): Contact[] {
-    return gChatContacts.map((contact, index) => ({
-      id: index + 1,
-      name: contact.name || contact.nameFromWhatsApp || 'Contato sem nome',
-      number: contact.number || 'Número não disponível',
-      label: contact.tags && contact.tags.length > 0 
-        ? contact.tags[0].name 
-        : 'Sem etiqueta',
-      whatsappName: contact.nameFromWhatsApp || contact.name || 'Contato sem nome'
-    }));
-  }
-
   // Atualizar opções de etiquetas
   private updateLabelOptions(contacts: Contact[]) {
+    // Extrair descrições únicas de todas as etiquetas
     const uniqueLabels = ['Todos', ...new Set(
-      contacts.map(contact => contact.label)
+      contacts
+        .map(contact => contact.label)
+        .filter(label => label !== 'Sem etiqueta')
     )];
+
     this.labelOptionsSubject.next(uniqueLabels);
   }
 

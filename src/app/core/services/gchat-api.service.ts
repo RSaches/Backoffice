@@ -22,9 +22,10 @@ export interface GChatContact {
 }
 
 export interface TagApiModel {
-  id: string;
-  name: string;
-  color: string;
+  Id: string;
+  OrganizationId: string;
+  HexColor: string;
+  Description: string;
 }
 
 export interface GChatErrorResponse {
