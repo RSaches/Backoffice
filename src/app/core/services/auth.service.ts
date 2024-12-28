@@ -111,9 +111,11 @@ export class AuthService {
   }
 
   logout() {
-    this.currentUserProfile = null;
-    return this.auth.signOut().then(() => {
+    this.auth.signOut().then(() => {
+      this.currentUserProfile = null;
       this.router.navigate(['/login']);
+    }).catch((error) => {
+      console.error('Erro ao fazer logout:', error);
     });
   }
 
@@ -123,6 +125,10 @@ export class AuthService {
 
   getCurrentUserProfile(): UserProfile | null {
     return this.currentUserProfile;
+  }
+
+  getUserName(): string {
+    return this.currentUserProfile?.name || 'Usuário';
   }
 
   isAuthenticated(): boolean {
