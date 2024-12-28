@@ -29,7 +29,7 @@
     h1 {
       margin: 0;
       color: #2E4053;
-      font-size: 2rem;
+      font-size: 3rem;
     }
   }
 
@@ -66,6 +66,28 @@
     display: flex;
     gap: 10px;
     margin-bottom: 10px;
+    align-items: center;
+
+    .company-select {
+      width: 550px;
+      margin-right: 10px;
+
+      .mat-mdc-select {
+        border-radius: 4px;
+
+        .mat-mdc-select-value {
+          color: #2E4053; 
+        }
+
+        .mat-mdc-select-arrow {
+          color: #2E4053; 
+        }
+      }
+
+      .mat-mdc-form-field-focus-overlay {
+        background: transparent;
+      }
+    }
 
     button {
       display: flex;
@@ -133,11 +155,37 @@
       border-top: 1px solid #e9ecef;
     }
   }
+
+  .loading-row {
+    text-align: center;
+    padding: 20px;
+    background-color: rgba(255, 255, 255, 0.7);
+  }
+
+  .no-data-row {
+    text-align: center;
+    padding: 20px;
+    color: #888;
+    font-style: italic;
+  }
+
+  .loading-row mat-spinner {
+    margin: 0 auto;
+  }
 }
 
 @media (max-width: 768px) {
   .main-content {
     margin-left: 70px; 
     width: calc(100% - 70px);
+  }
+}
+
+::ng-deep .error-snackbar {
+  background-color: #dc3545;
+  color: white;
+  
+  .mat-simple-snackbar-action {
+    color: white;
   }
 }

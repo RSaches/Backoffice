@@ -38,6 +38,17 @@ export interface User {
   senha?: string;
 }
 
+export interface Contact {
+  id?: string;
+  nome: string;
+  telefone: string;
+  etiqueta?: string;
+  nomeWhatsapp?: string;
+  empresaId?: string;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -205,5 +216,19 @@ export class FirebaseService {
 
   deleteUser(userId: string) {
     return this.deleteDocument('users', userId);
+  }
+
+  // Método para obter contatos
+  getContacts(empresaId?: string): Observable<Contact[]> {
+    // Referência para a coleção de contatos
+    const contatosRef = collection(this.firestore, 'contatos');
+    
+    // Se um empresaId for fornecido, filtra por empresa
+    let q = empresaId 
+      ? query(contatosRef, where('empresaId', '==', empresaId)) 
+      : contatosRef;
+
+    // Retorna os contatos como um Observable
+    return collectionData(q, { idField: 'id' }) as Observable<Contact[]>;
   }
 }
