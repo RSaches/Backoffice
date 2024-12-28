@@ -64,13 +64,13 @@
 
   .contacts-actions {
     display: flex;
-    gap: 10px;
-    margin-bottom: 10px;
     align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
 
     .company-select {
-      width: 550px;
-      margin-right: 10px;
+      flex-grow: 1;
+      max-width: 500px;
 
       .mat-mdc-select {
         border-radius: 4px;
@@ -89,31 +89,41 @@
       }
     }
 
-    button {
+    .contact-actions-group {
       display: flex;
       align-items: center;
-      gap: 8px;
-      background-color: #39586D; 
-      color: #D2D7DB; 
-      border: none;
-      padding: 10px 15px;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
+      gap: 16px;
 
-      mat-icon {
+      button {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background-color: #39586D; 
         color: #D2D7DB; 
-      }
+        border: none;
+        padding: 10px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
 
-      &:hover {
-        background-color: color.adjust(#39586D, $lightness: -10%);
-      }
+        mat-icon {
+          color: #D2D7DB; 
+        }
 
-      &:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-        background-color: color.adjust(#39586D, $lightness: 20%);
+        &:hover {
+          background-color: color.adjust(#39586D, $lightness: -10%);
+        }
+
+        &:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          background-color: color.adjust(#39586D, $lightness: 20%);
+        }
       }
+    }
+
+    .contact-bulk-actions {
+      display: flex;
     }
   }
 

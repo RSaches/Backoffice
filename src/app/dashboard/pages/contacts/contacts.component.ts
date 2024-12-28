@@ -1,10 +1,10 @@
-import { Component, OnInit, ViewChild, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
+import { Component, OnInit, ViewChild, OnDestroy, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatSelectModule } from '@angular/material/select';
+import { MatSelectModule, MatSelect } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -12,17 +12,19 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { RouterModule } from '@angular/router';
 import { SidebarComponent } from '../../components/sidebar/sidebar.component';
 import { FirebaseService, Company } from '../../../core/services/firebase.service';
-import { GChatApiService, GChatContact } from '../../../core/services/gchat-api.service';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
-export interface Contact {
-  id: number;
-  name: string;
-  number: string;
-  label: string;
-  whatsappName: string;
-  selected?: boolean;
-}
+import { 
+  ContactsService, 
+  Contact, 
+  ContactFilter, 
+  ContactSortField, 
+  SortDirection 
+} from '../../../core/services/contacts.service';
+import { Subscription } from 'rxjs';
+import { ExportDialogComponent, ExportFormat } from './export-dialog.component';
 
 @Component({
   selector: 'app-contacts',
@@ -40,13 +42,14 @@ export interface Contact {
     MatSnackBarModule,
     RouterModule,
     SidebarComponent,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    MatMenuModule,
+    MatDialogModule
   ],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './contacts.component.html',
   styleUrls: ['./contacts.component.scss']
 })
-export class ContactsComponent implements OnInit {
+export class ContactsComponent implements OnInit, OnDestroy {
   // Colunas que serão exibidas na tabela
   displayedColumns: string[] = [
     'select', 
@@ -62,14 +65,29 @@ export class ContactsComponent implements OnInit {
   // ViewChild para o paginador
   @ViewChild(MatPaginator) paginator!: MatPaginator;
 
+  // ViewChild para os campos de input
+  @ViewChild('labelSelect') labelSelect!: MatSelect;
+  @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
+
   // Opções de etiquetas dinâmicas
   labelOptions: string[] = ['Todos'];
 
-  // Termo de busca
-  searchTerm: string = '';
+  // Opções de ordenação
+  sortFields: { value: ContactSortField; label: string }[] = [
+    { value: 'name', label: 'Nome' },
+    { value: 'number', label: 'Número' },
+    { value: 'label', label: 'Etiqueta' },
+    { value: 'whatsappName', label: 'Nome WhatsApp' }
+  ];
+
+  // Estado de filtro e ordenação
+  currentFilter: ContactFilter = {};
+  currentSortField?: ContactSortField;
+  currentSortDirection: SortDirection = 'asc';
 
   // Seleção de contatos
   selectedContacts: Contact[] = [];
+  isAllSelected = false;
 
   companies: Company[] = [];
   selectedCompany: string | null = null;
@@ -78,14 +96,24 @@ export class ContactsComponent implements OnInit {
   // Variável para controlar o estado de carregamento
   isLoading = false;
 
+  // Subscriptions para gerenciar observables
+  private subscriptions: Subscription[] = [];
+
   constructor(
     private firebaseService: FirebaseService,
-    private gChatApiService: GChatApiService,
-    private snackBar: MatSnackBar
+    private contactsService: ContactsService,
+    private snackBar: MatSnackBar,
+    private dialog: MatDialog
   ) {}
 
   ngOnInit(): void {
     this.loadCompanies();
+    this.setupContactsSubscriptions();
+  }
+
+  ngOnDestroy(): void {
+    // Desinscrever de todos os observables
+    this.subscriptions.forEach(sub => sub.unsubscribe());
   }
 
   ngAfterViewInit() {
@@ -94,103 +122,195 @@ export class ContactsComponent implements OnInit {
     
     // Definir 15 itens por página
     this.paginator.pageSize = 15;
-
-    // Configurar filtro personalizado para etiquetas
-    this.dataSource.filterPredicate = (data: Contact, filter: string) => {
-      // Se for 'Todos', mostrar todos os contatos
-      if (filter === '') return true;
-      
-      // Comparar etiqueta exatamente, ignorando case
-      return data.label.toLowerCase() === filter.toLowerCase();
-    };
   }
 
-  // Métodos de ação dos botões
+  // Método para obter o label de ordenação atual
+  getSortLabel(): string {
+    const currentSort = this.sortFields.find(f => f.value === this.currentSortField);
+    return currentSort ? `por ${currentSort.label}` : '';
+  }
+
+  private setupContactsSubscriptions() {
+    // Inscrever para lista de contatos
+    this.subscriptions.push(
+      this.contactsService.contacts$.subscribe(contacts => {
+        this.dataSource.data = contacts;
+      })
+    );
+
+    // Inscrever para opções de etiquetas
+    this.subscriptions.push(
+      this.contactsService.labelOptions$.subscribe(labels => {
+        this.labelOptions = labels;
+      })
+    );
+
+    // Inscrever para estado de carregamento
+    this.subscriptions.push(
+      this.contactsService.loading$.subscribe(loading => {
+        this.isLoading = loading;
+      })
+    );
+  }
+
+  // Métodos de seleção de contatos
+  toggleAllSelection() {
+    this.isAllSelected = !this.isAllSelected;
+    const contactsToSelect = this.dataSource.filteredData;
+    
+    this.selectedContacts = this.contactsService.selectContacts(
+      contactsToSelect, 
+      this.isAllSelected
+    );
+  }
+
+  toggleContactSelection(contact: Contact) {
+    const isCurrentlySelected = this.selectedContacts.some(c => c.id === contact.id);
+    
+    this.selectedContacts = this.contactsService.selectContacts(
+      [contact], 
+      !isCurrentlySelected
+    );
+
+    // Atualizar estado de seleção total
+    this.isAllSelected = this.selectedContacts.length === this.dataSource.filteredData.length;
+  }
+
+  // Métodos de filtragem e ordenação
+  applyFilter(event: Event) {
+    const inputElement = event.target as HTMLInputElement;
+    const searchTerm = inputElement?.value || '';
+    
+    this.currentFilter = { 
+      ...this.currentFilter, 
+      searchTerm 
+    };
+    this.updateFilteredContacts();
+  }
+
+  filterByLabel(label: string) {
+    this.currentFilter = { 
+      ...this.currentFilter, 
+      label 
+    };
+    this.updateFilteredContacts();
+  }
+
+  sortContacts(field: ContactSortField) {
+    // Alternar direção se o mesmo campo for selecionado
+    if (this.currentSortField === field) {
+      this.currentSortDirection = this.currentSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.currentSortField = field;
+      this.currentSortDirection = 'asc';
+    }
+    
+    this.updateFilteredContacts();
+  }
+
+  private updateFilteredContacts() {
+    const filteredContacts = this.contactsService.filterAndSortContacts(
+      this.currentFilter, 
+      this.currentSortField, 
+      this.currentSortDirection
+    );
+
+    this.dataSource.data = filteredContacts;
+
+    // Atualizar seleção após filtragem
+    this.isAllSelected = false;
+    this.selectedContacts = [];
+  }
+
+  // Métodos de ação
   searchGChat() {
     if (!this.selectedCompany || !this.selectedCompanyToken) {
       this.snackBar.open('Selecione uma empresa primeiro', 'Fechar', { duration: 3000 });
       return;
     }
 
-    // Limpar lista de contatos antes de buscar
+    // Limpar campos de filtro e lista
+    this.currentFilter = {};
+    this.currentSortField = undefined;
+    this.selectedContacts = [];
+    this.isAllSelected = false;
+    
+    // Limpar campos de input
+    if (this.labelSelect) {
+      this.labelSelect.value = null;
+    }
+    if (this.searchInput) {
+      this.searchInput.nativeElement.value = '';
+    }
+    
+    // Limpar lista de contatos
     this.dataSource.data = [];
 
-    // Ativar loading
-    this.isLoading = true;
-
-    // Buscar contatos na API do G-Chat
-    this.gChatApiService.getContacts(this.selectedCompanyToken).subscribe({
-      next: (gChatContacts: GChatContact[]) => {
-        // Converter contatos do G-Chat para o formato da tabela
-        const convertedContacts: Contact[] = gChatContacts.map((contact, index) => ({
-          id: index + 1,
-          name: contact.name || contact.nameFromWhatsApp || 'Contato sem nome',
-          number: contact.number || 'Número não disponível',
-          label: contact.tags && contact.tags.length > 0 
-            ? contact.tags[0].name 
-            : 'Sem etiqueta',
-          whatsappName: contact.nameFromWhatsApp || contact.name || 'Contato sem nome'
-        }));
-
-        // Atualizar a tabela com os contatos
-        this.dataSource.data = convertedContacts;
-
-        // Atualizar opções de etiquetas dinamicamente
-        this.updateLabelOptions(convertedContacts);
-
-        // Atualizar paginação
-        this.updatePagination();
-
-        // Mostrar mensagem de sucesso
-        this.snackBar.open(`${convertedContacts.length} contatos carregados`, 'Fechar', { duration: 3000 });
-      },
-      error: (error) => {
-        // Tratar erro na busca de contatos
-        console.error('Erro ao buscar contatos do G-Chat:', error);
-        
-        // Mensagem de erro mais detalhada
-        const errorMessage = error.error?.msg || 
-                             error.message || 
-                             'Erro desconhecido ao buscar contatos';
-        
-        this.snackBar.open(errorMessage, 'Fechar', { 
-          duration: 5000,
-          panelClass: ['error-snackbar'] 
-        });
-      },
-      complete: () => {
-        // Desativar loading quando a requisição terminar (com sucesso ou erro)
-        this.isLoading = false;
-      }
-    });
+    this.subscriptions.push(
+      this.contactsService.searchGChat(this.selectedCompanyToken).subscribe({
+        next: (contacts) => {
+          // Atualizar lista de contatos após a busca
+          this.dataSource.data = contacts;
+        },
+        error: (error) => {
+          this.snackBar.open(error.message, 'Fechar', { 
+            duration: 5000,
+            panelClass: ['error-snackbar'] 
+          });
+        }
+      })
+    );
   }
 
   importContacts() {
-    console.log('Importando contatos');
+    this.subscriptions.push(
+      this.contactsService.importContacts().subscribe({
+        next: () => {
+          this.snackBar.open('Contatos importados com sucesso', 'Fechar', { duration: 3000 });
+        },
+        error: (error) => {
+          this.snackBar.open('Erro ao importar contatos', 'Fechar', { duration: 3000 });
+        }
+      })
+    );
   }
 
   exportContacts() {
-    console.log('Exportando contatos');
+    // Abrir diálogo de seleção de formato
+    const dialogRef = this.dialog.open(ExportDialogComponent, {
+      width: '300px'
+    });
+
+    this.subscriptions.push(
+      dialogRef.afterClosed().subscribe((format: ExportFormat | null) => {
+        if (format) {
+          this.contactsService.exportContacts(this.dataSource.filteredData, format)
+            .subscribe({
+              next: () => {
+                this.snackBar.open('Contatos exportados com sucesso', 'Fechar', { duration: 3000 });
+              },
+              error: () => {
+                this.snackBar.open('Erro ao exportar contatos', 'Fechar', { duration: 3000 });
+              }
+            });
+        }
+      })
+    );
   }
 
   deleteSelectedContacts() {
-    this.dataSource.data = this.dataSource.data.filter(
-      contact => !this.selectedContacts.includes(contact)
+    this.subscriptions.push(
+      this.contactsService.deleteSelectedContacts(this.selectedContacts).subscribe({
+        next: () => {
+          this.selectedContacts = [];
+          this.isAllSelected = false;
+          this.snackBar.open('Contatos excluídos com sucesso', 'Fechar', { duration: 3000 });
+        },
+        error: (error) => {
+          this.snackBar.open('Erro ao excluir contatos', 'Fechar', { duration: 3000 });
+        }
+      })
     );
-    this.selectedContacts = [];
-  }
-
-  toggleContactSelection(contact: Contact) {
-    contact.selected = !contact.selected;
-    
-    if (contact.selected) {
-      this.selectedContacts.push(contact);
-    } else {
-      const index = this.selectedContacts.findIndex(c => c.id === contact.id);
-      if (index !== -1) {
-        this.selectedContacts.splice(index, 1);
-      }
-    }
   }
 
   loadCompanies() {
@@ -199,82 +319,15 @@ export class ContactsComponent implements OnInit {
         this.companies = companies;
       },
       (error) => {
-        console.error('Erro ao carregar empresas:', error);
+        this.snackBar.open('Erro ao carregar empresas', 'Fechar', { duration: 3000 });
       }
     );
   }
 
   onCompanySelect(companyId: string) {
-    // Encontrar o token da empresa selecionada
     const selectedCompany = this.companies.find(company => company.id === companyId);
-    this.selectedCompanyToken = selectedCompany ? selectedCompany.token : null;
-  }
-
-  // Método para atualizar as opções de etiquetas
-  updateLabelOptions(contacts: Contact[]) {
-    // Resetar para 'Todos'
-    this.labelOptions = ['Todos'];
-
-    // Extrair etiquetas únicas
-    const uniqueLabels = new Set(
-      contacts
-        .map(contact => contact.label)
-        .filter(label => label !== 'Sem etiqueta')
-    );
-
-    // Adicionar etiquetas únicas
-    uniqueLabels.forEach(label => {
-      if (label) {
-        this.labelOptions.push(label);
-      }
-    });
-
-    // Adicionar 'Sem etiqueta' no final
-    this.labelOptions.push('Sem etiqueta');
-
-    console.log('Etiquetas disponíveis:', this.labelOptions);
-  }
-
-  // Método para filtrar por etiqueta
-  filterByLabel(label: string) {
-    console.log('Filtrando por etiqueta:', label);
-
-    if (label === 'Todos') {
-      // Limpar filtro
-      this.dataSource.filter = '';
-    } else {
-      // Aplicar filtro específico
-      this.dataSource.filter = label.trim().toLowerCase();
-    }
-
-    // Garantir que a paginação seja recalculada
-    if (this.dataSource.paginator) {
-      this.dataSource.paginator.firstPage();
-    }
-
-    // Log para verificar filtragem
-    console.log('Contatos filtrados:', 
-      this.dataSource.filteredData.length, 
-      'de', 
-      this.dataSource.data.length
-    );
-  }
-
-  // Método para atualizar a paginação
-  updatePagination() {
-    if (this.dataSource.paginator) {
-      this.dataSource.paginator.length = this.dataSource.filteredData.length;
-      this.dataSource.paginator.pageIndex = 0;
-    }
-  }
-
-  // Método para filtrar contatos
-  applyFilter(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value;
-    this.dataSource.filter = filterValue.trim().toLowerCase();
-
-    if (this.dataSource.paginator) {
-      this.dataSource.paginator.firstPage();
+    if (selectedCompany) {
+      this.selectedCompanyToken = selectedCompany.token;
     }
   }
 }

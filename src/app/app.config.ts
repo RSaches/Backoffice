@@ -7,9 +7,14 @@ import { getFirestore, provideFirestore } from '@angular/fire/firestore';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { provideNgxMask } from 'ngx-mask';
+import { LOCALE_ID } from '@angular/core';
+import { registerLocaleData } from '@angular/common';
+import localePtBr from '@angular/common/locales/pt';
 
 import { routes } from './app.routes';
 import { environment } from '../environments/environment';
+
+registerLocaleData(localePtBr);
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -20,6 +25,7 @@ export const appConfig: ApplicationConfig = {
     provideFirestore(() => getFirestore()),
     provideAnimations(), // Adiciona suporte para animações
     provideHttpClient(withInterceptorsFromDi()), // Adiciona suporte para HttpClient
-    provideNgxMask() // Adiciona suporte para ngx-mask
+    provideNgxMask(), // Adiciona suporte para ngx-mask
+    { provide: LOCALE_ID, useValue: 'pt-BR' } // Configuração de localização
   ]
 };
