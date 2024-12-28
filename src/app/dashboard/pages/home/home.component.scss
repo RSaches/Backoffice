@@ -7,9 +7,10 @@
 .main-content {
   flex-grow: 1;
   margin-left: 250px;
+  width: calc(100% - 250px);
   padding: 30px;
   overflow-y: auto;
-  transition: margin-left 0.3s ease;
+  transition: margin-left 0.3s ease, width 0.3s ease;
 }
 
 .dashboard-header {
@@ -187,5 +188,12 @@
     &:hover {
       background-color: #1E2A3A;
     }
+  }
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 70px;
+    width: calc(100% - 70px);
   }
 }

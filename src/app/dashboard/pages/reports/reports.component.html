@@ -1,0 +1,45 @@
+<div class="dashboard-container">
+  <app-sidebar></app-sidebar>
+  
+  <main class="main-content">
+    <header class="dashboard-header">
+      <div class="header-title">
+        <h1>Relatórios</h1>
+      </div>
+    </header>
+
+    <div class="reports-content">
+      <div class="reports-container">
+        <div class="reports-actions">
+          <button (click)="generateReport()" class="generate-report-btn">
+            Gerar Novo Relatório
+          </button>
+        </div>
+
+        <table class="reports-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Título</th>
+              <th>Data</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let report of reports">
+              <td>{{ report.id }}</td>
+              <td>{{ report.title }}</td>
+              <td>{{ report.date | date:'dd/MM/yyyy HH:mm' }}</td>
+              <td>{{ report.status }}</td>
+              <td>
+                <button>Visualizar</button>
+                <button>Baixar</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>

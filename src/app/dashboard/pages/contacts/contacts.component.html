@@ -1,0 +1,114 @@
+<div class="dashboard-container">
+  <app-sidebar></app-sidebar>
+  
+  <main class="main-content">
+    <header class="dashboard-header">
+      <div class="header-title">
+        <h1>Contatos</h1>
+      </div>
+      <div class="header-actions">
+        <button class="notification-btn">
+          <i class="fas fa-bell"></i>
+          <span class="badge">3</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="contacts-content">
+      <div class="contacts-actions">
+        <button mat-raised-button color="primary" (click)="searchGChat()">
+          <mat-icon>search</mat-icon> Buscar G-Chat
+        </button>
+        
+        <button mat-raised-button color="accent" (click)="importContacts()">
+          <mat-icon>cloud_upload</mat-icon> Importar
+        </button>
+        
+        <button mat-raised-button color="accent" (click)="exportContacts()">
+          <mat-icon>cloud_download</mat-icon> Exportar
+        </button>
+        
+        <button mat-raised-button color="warn" 
+                (click)="deleteSelectedContacts()"
+                [disabled]="selectedContacts.length === 0">
+          <mat-icon>delete</mat-icon> Excluir
+        </button>
+      </div>
+
+      <div class="contacts-filters">
+        <mat-form-field>
+          <mat-label>Filtrar por Etiqueta</mat-label>
+          <mat-select>
+            <mat-option *ngFor="let label of labelOptions" [value]="label">
+              {{ label }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field class="search-field">
+          <mat-label>Buscar Contatos</mat-label>
+          <input matInput 
+                 [(ngModel)]="searchTerm" 
+                 (ngModelChange)="applyFilter()"
+                 placeholder="Nome, número ou WhatsApp">
+          <mat-icon matSuffix>search</mat-icon>
+        </mat-form-field>
+      </div>
+
+      <div class="contacts-table-container">
+        <table mat-table [dataSource]="filteredContacts" class="contacts-table">
+          <!-- Checkbox Column -->
+          <ng-container matColumnDef="select">
+            <th mat-header-cell *matHeaderCellDef>
+              <mat-checkbox 
+                (change)="toggleAllSelection()"
+                [checked]="isAllSelected()"
+                [indeterminate]="selectedContacts.length > 0 && !isAllSelected()">
+              </mat-checkbox>
+            </th>
+            <td mat-cell *matCellDef="let contact">
+              <mat-checkbox 
+                [checked]="selectedContacts.includes(contact)"
+                (change)="toggleContactSelection(contact)">
+              </mat-checkbox>
+            </td>
+          </ng-container>
+
+          <!-- Nome Column -->
+          <ng-container matColumnDef="name">
+            <th mat-header-cell *matHeaderCellDef>Nome</th>
+            <td mat-cell *matCellDef="let contact">{{ contact.name }}</td>
+          </ng-container>
+
+          <!-- Número Column -->
+          <ng-container matColumnDef="number">
+            <th mat-header-cell *matHeaderCellDef>Número</th>
+            <td mat-cell *matCellDef="let contact">{{ contact.number }}</td>
+          </ng-container>
+
+          <!-- Etiqueta Column -->
+          <ng-container matColumnDef="label">
+            <th mat-header-cell *matHeaderCellDef>Etiqueta</th>
+            <td mat-cell *matCellDef="let contact">{{ contact.label }}</td>
+          </ng-container>
+
+          <!-- WhatsApp Name Column -->
+          <ng-container matColumnDef="whatsappName">
+            <th mat-header-cell *matHeaderCellDef>Nome WhatsApp</th>
+            <td mat-cell *matCellDef="let contact">{{ contact.whatsappName }}</td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        </table>
+
+        <mat-paginator 
+          [length]="filteredContacts.length"
+          [pageSize]="pageSize"
+          [pageSizeOptions]="[25, 50, 100]"
+          showFirstLastButtons>
+        </mat-paginator>
+      </div>
+    </div>
+  </main>
+</div>

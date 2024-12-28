@@ -1,3 +1,6 @@
+@use 'sass:color';
+@use 'sass:map';
+
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
@@ -20,10 +23,27 @@
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.dashboard-container {
+  display: flex;
+  height: 100vh;
+  background-color: #f4f7f6;
+  overflow: hidden;
+}
+
+.main-content {
+  flex-grow: 1;
+  margin-left: 250px; // Largura do sidebar
+  width: calc(100% - 250px);
+  padding: 30px;
+  overflow-y: auto;
+  transition: margin-left 0.3s ease, width 0.3s ease;
+  background-color: #f4f7f6;
+}
+
 .settings-page {
   font-family: 'Inter', sans-serif;
-  background-color: var(--color-background);
-  padding: 2rem;
+  background-color: #f4f7f6;
+  padding: 0;
   border-radius: 12px;
 }
 
@@ -167,7 +187,7 @@
         background-color: #28a745;
         
         &:hover {
-          background-color: darken(#28a745, 10%);
+          background-color: color.adjust(#28a745, $lightness: -10%);
         }
       }
 
@@ -175,7 +195,7 @@
         background-color: #6c757d;
         
         &:hover {
-          background-color: darken(#6c757d, 10%);
+          background-color: color.adjust(#6c757d, $lightness: -10%);
         }
       }
     }
@@ -473,6 +493,11 @@
   .settings-tabs {
     flex-direction: column;
   }
+
+  .main-content {
+    margin-left: 70px; // Largura do sidebar em telas menores
+    width: calc(100% - 70px);
+  }
 }
 
 // Companies Section
@@ -729,7 +754,7 @@
         background-color: #28a745;
         
         &:hover {
-          background-color: darken(#28a745, 10%);
+          background-color: color.adjust(#28a745, $lightness: -10%);
         }
       }
 
@@ -737,7 +762,7 @@
         background-color: #6c757d;
         
         &:hover {
-          background-color: darken(#6c757d, 10%);
+          background-color: color.adjust(#6c757d, $lightness: -10%);
         }
       }
     }

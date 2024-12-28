@@ -1,0 +1,49 @@
+@import '@angular/material' as mat;
+@import 'sass:color';
+
+// Definição do tema com paletas personalizadas
+$custom-theme: mat.define-light-theme((
+  color: (
+    primary: mat.define-palette(mat.$blue-palette),
+    accent: mat.define-palette(mat.$blue-grey-palette),
+    warn: mat.define-palette(mat.$red-palette)
+  ),
+  typography: mat.define-typography-config(),
+  density: 0
+));
+
+// Incluir temas para todos os componentes
+@include mat.core();
+@include mat.all-component-themes($custom-theme);
+
+// Estilos globais personalizados
+.mat-mdc-raised-button {
+  background-color: #0073E6 !important;
+  color: white !important;
+  transition: background-color 0.3s ease;
+
+  &:hover {
+    background-color: #005CB3 !important;
+  }
+}
+
+.mat-mdc-icon-button {
+  color: #627D98;
+}
+
+body {
+  font-family: 'Inter', 'Roboto', sans-serif;
+  color: #102A43;
+  background-color: #F0F4F8;
+}
+
+a {
+  color: #0073E6;
+  text-decoration: none;
+  transition: color 0.3s ease;
+
+  &:hover {
+    color: #005CB3;
+    text-decoration: underline;
+  }
+}

@@ -1,0 +1,30 @@
+// Global Color Palette
+:root {
+  // Buttons
+  --button-bg: #314440;
+  --button-text: #EBEAE9;
+
+  // Sidebar
+  --sidebar-bg: #4A5660;
+  --sidebar-text: #EBEAE9;
+
+  // Text Colors
+  --text-primary: #000000;
+
+  // Icons
+  --icon-color: #E2E3E3;
+
+  // Additional Utility Colors
+  --white: #FFFFFF;
+  --black: #000000;
+}
+
+// SCSS Variables (for use in SCSS files)
+$button-bg: var(--button-bg);
+$button-text: var(--button-text);
+$sidebar-bg: var(--sidebar-bg);
+$sidebar-text: var(--sidebar-text);
+$text-primary: var(--text-primary);
+$icon-color: var(--icon-color);
+$white: var(--white);
+$black: var(--black);
