@@ -15,6 +15,7 @@ import { FirebaseService, Company } from '../../../core/services/firebase.servic
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { ConfirmDialogComponent } from '../../../components/confirm-dialog/confirm-dialog.component';
 
 import { 
   ContactsService, 
@@ -56,7 +57,9 @@ export class ContactsComponent implements OnInit, OnDestroy {
     'name', 
     'number', 
     'label', 
-    'whatsappName'
+    'whatsappName',
+    'actions',
+    'gChatId'  // Coluna oculta para o ID do G-Chat
   ];
 
   // DataSource para a tabela com paginação
@@ -120,8 +123,11 @@ export class ContactsComponent implements OnInit, OnDestroy {
     // Configurar paginador
     this.dataSource.paginator = this.paginator;
     
-    // Definir 15 itens por página
-    this.paginator.pageSize = 15;
+    // Definir opções de tamanho de página: 5, 15, 25, 50, 75, 100, 125
+    this.paginator.pageSizeOptions = [5, 15, 25, 50, 75, 100, 125];
+    
+    // Definir tamanho inicial de página para 5
+    this.paginator.pageSize = 5;
   }
 
   // Método para obter o label de ordenação atual
@@ -153,26 +159,24 @@ export class ContactsComponent implements OnInit, OnDestroy {
     );
   }
 
+  // Verifica se um contato está selecionado
+  isSelected(contact: Contact): boolean {
+    return this.selectedContacts.some(c => c.gChatId === contact.gChatId);
+  }
+
   // Métodos de seleção de contatos
   toggleAllSelection() {
-    this.isAllSelected = !this.isAllSelected;
-    const contactsToSelect = this.dataSource.filteredData;
-    
-    this.selectedContacts = this.contactsService.selectContacts(
-      contactsToSelect, 
-      this.isAllSelected
-    );
+    const contacts = this.dataSource.filteredData;
+    this.selectedContacts = this.isAllSelected ? contacts : [];
   }
 
   toggleContactSelection(contact: Contact) {
-    const isCurrentlySelected = this.selectedContacts.some(c => c.id === contact.id);
-    
-    this.selectedContacts = this.contactsService.selectContacts(
-      [contact], 
-      !isCurrentlySelected
-    );
-
-    // Atualizar estado de seleção total
+    const index = this.selectedContacts.findIndex(c => c.gChatId === contact.gChatId);
+    if (index > -1) {
+      this.selectedContacts.splice(index, 1);
+    } else {
+      this.selectedContacts.push(contact);
+    }
     this.isAllSelected = this.selectedContacts.length === this.dataSource.filteredData.length;
   }
 
@@ -220,6 +224,19 @@ export class ContactsComponent implements OnInit, OnDestroy {
     // Atualizar seleção após filtragem
     this.isAllSelected = false;
     this.selectedContacts = [];
+
+    // Mostrar pop-up animado com quantidade de contatos
+    const contactCount = filteredContacts.length;
+    const message = contactCount === 1 
+      ? '1 contato encontrado' 
+      : `${contactCount} contatos encontrados`;
+
+    this.snackBar.open(message, 'Fechar', {
+      duration: 3000,
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+      panelClass: ['contact-count-snackbar']
+    });
   }
 
   // Métodos de ação
@@ -251,6 +268,19 @@ export class ContactsComponent implements OnInit, OnDestroy {
         next: (contacts) => {
           // Atualizar lista de contatos após a busca
           this.dataSource.data = contacts;
+
+          // Mostrar pop-up animado com quantidade de contatos
+          const contactCount = contacts.length;
+          const message = contactCount === 1 
+            ? '1 contato encontrado' 
+            : `${contactCount} contatos encontrados`;
+
+          this.snackBar.open(message, 'Fechar', {
+            duration: 3000,
+            horizontalPosition: 'center',
+            verticalPosition: 'top',
+            panelClass: ['contact-count-snackbar']
+          });
         },
         error: (error) => {
           this.snackBar.open(error.message, 'Fechar', { 
@@ -298,19 +328,74 @@ export class ContactsComponent implements OnInit, OnDestroy {
     );
   }
 
-  deleteSelectedContacts() {
-    this.subscriptions.push(
-      this.contactsService.deleteSelectedContacts(this.selectedContacts).subscribe({
-        next: () => {
-          this.selectedContacts = [];
-          this.isAllSelected = false;
-          this.snackBar.open('Contatos excluídos com sucesso', 'Fechar', { duration: 3000 });
-        },
-        error: (error) => {
-          this.snackBar.open('Erro ao excluir contatos', 'Fechar', { duration: 3000 });
-        }
-      })
-    );
+  deleteSelectedContacts(contacts?: Contact[]) {
+    if (!this.selectedCompanyToken) {
+      this.snackBar.open('Selecione uma empresa primeiro', 'Fechar', { duration: 3000 });
+      return;
+    }
+
+    const contactsToDelete = contacts || this.selectedContacts;
+
+    if (contactsToDelete.length === 0) {
+      this.snackBar.open('Nenhum contato selecionado', 'Fechar', { duration: 3000 });
+      return;
+    }
+
+    // Validar IDs dos contatos selecionados
+    const validContacts = contactsToDelete.filter(contact => {
+      if (!contact.gChatId) {
+        console.warn('Contato sem ID do G-Chat:', contact);
+        return false;
+      }
+      return true;
+    });
+
+    if (validContacts.length === 0) {
+      this.snackBar.open('Nenhum contato válido para exclusão', 'Fechar', { duration: 3000 });
+      return;
+    }
+
+    if (validContacts.length !== contactsToDelete.length) {
+      console.warn(`${contactsToDelete.length - validContacts.length} contatos inválidos foram ignorados`);
+    }
+
+    // Confirmar exclusão
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '350px',
+      data: {
+        title: 'Confirmar Exclusão',
+        message: `Tem certeza que deseja excluir ${validContacts.length} contato(s)?`
+      }
+    });
+
+    dialogRef.afterClosed().subscribe((result: boolean) => {
+      if (result) {
+        this.isLoading = true;
+        this.contactsService.deleteContacts(
+          validContacts, 
+          this.selectedCompanyToken || ''
+        ).subscribe({
+          next: (success: boolean) => {
+            this.isLoading = false;
+            // Limpar seleção após a exclusão, independente do resultado
+            if (contacts) {
+              // Se foi uma exclusão individual, apenas remover o contato da seleção
+              this.selectedContacts = this.selectedContacts.filter(
+                c => !validContacts.some(vc => vc.gChatId === c.gChatId)
+              );
+            } else {
+              // Se foi uma exclusão em lote, limpar toda a seleção
+              this.selectedContacts = [];
+              this.isAllSelected = false;
+            }
+          },
+          error: (error: any) => {
+            this.isLoading = false;
+            console.error('Erro ao excluir contatos:', error);
+          }
+        });
+      }
+    });
   }
 
   loadCompanies() {
@@ -329,5 +414,11 @@ export class ContactsComponent implements OnInit, OnDestroy {
     if (selectedCompany) {
       this.selectedCompanyToken = selectedCompany.token;
     }
+  }
+
+  // Método para editar contato
+  editContact(contact: any) {
+    // TODO: Implementar lógica de edição de contato
+    console.log('Editar contato:', contact);
   }
 }

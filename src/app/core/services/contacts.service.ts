@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
+import { BehaviorSubject, Observable, of, throwError, forkJoin } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 
 import { FirebaseService, Company } from './firebase.service';
@@ -8,11 +8,12 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 
 export interface Contact {
   id: number;
+  gChatId: string;  // ID original do G-Chat
   name: string;
   number: string;
   label: string;
   whatsappName: string;
-  selected?: boolean;
+  selected: boolean;
 }
 
 export interface ContactFilter {
@@ -62,14 +63,24 @@ export class ContactsService {
 
   // Converter contatos do G-Chat para o formato interno
   private convertGChatContacts(gChatContacts: GChatContact[]): Contact[] {
-    return gChatContacts.map((contact, index) => ({
-      id: index + 1, // Convertendo para número
-      name: contact.name || contact.nameFromWhatsApp || 'Sem nome',
-      number: contact.number || '',
-      label: this.processContactTags(contact),
-      whatsappName: contact.nameFromWhatsApp || '',
-      selected: false
-    }));
+    return gChatContacts
+      .map(contact => {
+        if (!contact.id) {
+          console.warn('Contato sem ID do G-Chat:', contact);
+          return null;
+        }
+        
+        return {
+          id: Date.now(), // ID local temporário para a tabela
+          gChatId: contact.id, // ID original do G-Chat (ex: "64d4b25af939a62141a76b0c")
+          name: contact.nickName || contact.name || contact.nameFromWhatsApp || 'Sem nome',
+          number: contact.number || '',
+          label: this.processContactTags(contact),
+          whatsappName: contact.nameFromWhatsApp || '',
+          selected: false
+        } as Contact;
+      })
+      .filter((contact): contact is Contact => contact !== null);
   }
 
   // Buscar contatos do G-Chat
@@ -111,11 +122,12 @@ export class ContactsService {
 
   // Atualizar opções de etiquetas
   private updateLabelOptions(contacts: Contact[]) {
-    // Extrair descrições únicas de todas as etiquetas
+    // Extrair descrições únicas de todas as etiquetas, ordenando alfabeticamente
     const uniqueLabels = ['Todos', ...new Set(
       contacts
         .map(contact => contact.label)
         .filter(label => label !== 'Sem etiqueta')
+        .sort((a, b) => a.localeCompare(b))
     )];
 
     this.labelOptionsSubject.next(uniqueLabels);
@@ -175,7 +187,7 @@ export class ContactsService {
   }
 
   // Método para selecionar múltiplos contatos
-  selectContacts(contacts: Contact[], selected: boolean) {
+  selectContacts(contacts: Contact[], selected: boolean): Contact[] {
     const currentContacts = this.contactsSubject.value;
     
     const updatedContacts = currentContacts.map(contact => {
@@ -313,15 +325,91 @@ export class ContactsService {
     });
   }
 
-  // Excluir contatos selecionados
-  deleteSelectedContacts(selectedContacts: Contact[]): Observable<Contact[]> {
-    const currentContacts = this.contactsSubject.value;
-    const remainingContacts = currentContacts.filter(
-      contact => !selectedContacts.includes(contact)
+  // Método para excluir contatos
+  deleteContacts(contacts: Contact[], companyToken: string): Observable<boolean> {
+    if (!contacts.length || !companyToken) {
+      this.snackBar.open('Nenhum contato selecionado para exclusão', 'Fechar', {
+        duration: 3000
+      });
+      return of(false);
+    }
+
+    // Criar um array de observables para exclusão
+    const deleteObservables = contacts.map(contact => {
+      const contactId = contact.gChatId;
+      
+      return this.gChatApiService.deleteContact(companyToken, contactId).pipe(
+        map(result => {
+          if (result.notFound) {
+            return { 
+              id: contact.id, 
+              success: true, 
+              message: 'Contato já não existe' 
+            };
+          }
+          return { 
+            id: contact.id, 
+            success: true 
+          };
+        }),
+        catchError(error => {
+          const errorMessage = error.message || `Erro ao excluir contato ${contact.id}`;
+          console.error(errorMessage, error);
+          
+          return of({ 
+            id: contact.id, 
+            success: false, 
+            message: errorMessage 
+          });
+        })
+      );
+    });
+
+    return forkJoin(deleteObservables).pipe(
+      map(results => {
+        const successfulDeletes = results.filter(result => result.success);
+        const failedDeletes = results.filter(result => !result.success);
+
+        // Atualizar lista de contatos removendo os excluídos com sucesso
+        if (successfulDeletes.length > 0) {
+          const successfulIds = successfulDeletes.map(result => result.id);
+          const remainingContacts = this.contactsSubject.value.filter(
+            contact => !successfulIds.includes(contact.id)
+          );
+          this.contactsSubject.next(remainingContacts);
+          
+          const notFoundContacts = successfulDeletes.filter(result => result.message?.includes('não existe')).length;
+          const deletedContacts = successfulDeletes.length - notFoundContacts;
+          
+          let message = '';
+          if (deletedContacts > 0) {
+            message += `${deletedContacts} contato(s) excluído(s) com sucesso. `;
+          }
+          if (notFoundContacts > 0) {
+            message += `${notFoundContacts} contato(s) já haviam sido excluídos.`;
+          }
+          
+          this.snackBar.open(message.trim(), 'Fechar', { duration: 3000 });
+        }
+
+        if (failedDeletes.length > 0) {
+          console.warn(`Falha ao excluir ${failedDeletes.length} contato(s):`, 
+            failedDeletes.map(f => `${f.id} (${f.message})`).join(', '));
+        }
+
+        return successfulDeletes.length > 0;
+      }),
+      catchError(error => {
+        const errorMessage = error.message || 'Erro ao excluir contatos';
+        console.error(errorMessage, error);
+        
+        this.snackBar.open(errorMessage, 'Fechar', {
+          duration: 3000
+        });
+        
+        return of(false);
+      })
     );
-    
-    this.contactsSubject.next(remainingContacts);
-    return of(remainingContacts);
   }
 
   // Filtrar contatos por etiqueta
@@ -333,5 +421,9 @@ export class ContactsService {
     return allContacts.filter(
       contact => contact.label.toLowerCase() === label.toLowerCase()
     );
+  }
+
+  deleteSelectedContacts(selectedContacts: Contact[]): Observable<boolean> {
+    return of(false);
   }
 }

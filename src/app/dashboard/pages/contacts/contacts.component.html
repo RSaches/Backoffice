@@ -52,8 +52,9 @@
               <button mat-menu-item (click)="exportContacts()">
                 <mat-icon>cloud_download</mat-icon> Exportar
               </button>
-              <button mat-menu-item (click)="deleteSelectedContacts()" color="warn">
-                <mat-icon>delete</mat-icon> Excluir
+              <button mat-menu-item (click)="deleteSelectedContacts()">
+                <mat-icon>delete</mat-icon>
+                <span>Excluir Selecionados</span>
               </button>
             </mat-menu>
           </div>
@@ -107,16 +108,11 @@
             <!-- Checkbox Column -->
             <ng-container matColumnDef="select">
               <th mat-header-cell *matHeaderCellDef>
-                <mat-checkbox 
-                  [checked]="isAllSelected"
-                  [indeterminate]="selectedContacts.length > 0 && selectedContacts.length < dataSource.filteredData.length"
-                  (change)="toggleAllSelection()">
+                <mat-checkbox [(ngModel)]="isAllSelected" (change)="toggleAllSelection()">
                 </mat-checkbox>
               </th>
               <td mat-cell *matCellDef="let contact">
-                <mat-checkbox 
-                  [checked]="contact.selected"
-                  (change)="toggleContactSelection(contact)">
+                <mat-checkbox [checked]="isSelected(contact)" (change)="toggleContactSelection(contact)">
                 </mat-checkbox>
               </td>
             </ng-container>
@@ -124,36 +120,62 @@
             <!-- Name Column -->
             <ng-container matColumnDef="name">
               <th mat-header-cell *matHeaderCellDef>Nome</th>
-              <td mat-cell *matCellDef="let contact">{{ contact.name }}</td>
+              <td mat-cell *matCellDef="let contact">{{contact.name}}</td>
             </ng-container>
 
             <!-- Number Column -->
             <ng-container matColumnDef="number">
               <th mat-header-cell *matHeaderCellDef>Número</th>
-              <td mat-cell *matCellDef="let contact">{{ contact.number }}</td>
+              <td mat-cell *matCellDef="let contact">{{contact.number}}</td>
             </ng-container>
 
             <!-- Label Column -->
             <ng-container matColumnDef="label">
               <th mat-header-cell *matHeaderCellDef>Etiqueta</th>
-              <td mat-cell *matCellDef="let contact">{{ contact.label }}</td>
+              <td mat-cell *matCellDef="let contact">{{contact.label}}</td>
             </ng-container>
 
             <!-- WhatsApp Name Column -->
             <ng-container matColumnDef="whatsappName">
               <th mat-header-cell *matHeaderCellDef>Nome WhatsApp</th>
-              <td mat-cell *matCellDef="let contact">{{ contact.whatsappName }}</td>
+              <td mat-cell *matCellDef="let contact">{{contact.whatsappName}}</td>
             </ng-container>
 
-            <tr mat-header-row *matHeaderRowDef="['select', 'name', 'number', 'label', 'whatsappName']"></tr>
-            <tr mat-row *matRowDef="let row; columns: ['select', 'name', 'number', 'label', 'whatsappName']"></tr>
+            <!-- Actions Column -->
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>Ações</th>
+              <td mat-cell *matCellDef="let contact">
+                <button mat-icon-button [matMenuTriggerFor]="actionMenu">
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <mat-menu #actionMenu="matMenu">
+                  <button mat-menu-item (click)="editContact(contact)">
+                    <mat-icon>edit</mat-icon>
+                    <span>Editar</span>
+                  </button>
+                  <button mat-menu-item (click)="deleteSelectedContacts([contact])">
+                    <mat-icon>delete</mat-icon>
+                    <span>Excluir</span>
+                  </button>
+                </mat-menu>
+              </td>
+            </ng-container>
+
+            <!-- G-Chat ID Column (hidden) -->
+            <ng-container matColumnDef="gChatId">
+              <th mat-header-cell *matHeaderCellDef style="display: none;">ID G-Chat</th>
+              <td mat-cell *matCellDef="let contact" style="display: none;">{{contact.gChatId}}</td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
 
             <!-- Loading e Estado Vazio -->
             <tr *matNoDataRow>
-              <td *ngIf="isLoading" colspan="5" class="loading-row">
+              <td *ngIf="isLoading" [colSpan]="displayedColumns.length" class="loading-row">
                 <mat-spinner diameter="50"></mat-spinner>
               </td>
-              <td *ngIf="!isLoading && dataSource.data.length === 0" colspan="5" class="no-data-row">
+              <td *ngIf="!isLoading && dataSource.data.length === 0" [colSpan]="displayedColumns.length" class="no-data-row">
                 Nenhum contato encontrado
               </td>
             </tr>
